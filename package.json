@@ -1,0 +1,33 @@
+{
+  "name": "web-crawler",
+  "version": "1.0.0",
+  "description": "web crawler in nodejs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "build": "react-scripts build && sw-precache --config=sw-precache-config.js",
+    "test": "react-scripts test --env=jsdom",
+    "eject": "react-scripts eject",
+    "test-lint": "eslint --ignore-pattern \"build\" --ignore-path .gitignore ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlphaV7/Web-Crawler.git"
+  },
+  "author": "Vibhor Chaturvedi",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/AlphaV7/Web-Crawler/issues"
+  },
+  "homepage": "https://github.com/AlphaV7/Web-Crawler#readme",
+  "dependencies": {
+    "bluebird": "^3.5.1",
+    "cheerio": "^1.0.0-rc.2",
+    "eslint": "^5.0.1",
+    "eslint-config-strongloop": "^2.1.0",
+    "lodash": "^4.17.10",
+    "query-string": "^6.1.0",
+    "request": "^2.87.0",
+    "request-promise": "^4.2.2"
+  }
+}
