@@ -1,18 +1,16 @@
 const Promise = require('bluebird');
-var MongoDB = Promise.promisifyAll(require('mongodb'));
-var MongoClient = Promise.promisifyAll(MongoDB.MongoClient);
 const rp = require('request-promise');
 const cheerio = require('cheerio');
 
-const config = require('./config');
-const utils = require('./utils');
-
-const { baseUrl, promiseTimeout, requestTimeout, totalIterations, requestConcurrency,
-  mongodbConnectionString, mongodbCollection } = config;
-const { validURL, collectInternalLinks, urlObject } = utils;
+const { baseUrl, promiseTimeout, requestTimeout, totalIterations, requestConcurrency } = require('./config');
+const { validURL, collectInternalLinks, storeLinkInDatabase, dropLinksInDatabase} = require('./utils');
 
 const urls = [ baseUrl ];
 const dictionary = {};
+
+let crawledUrls = 0;
+
+dropLinksInDatabase();
 
 Promise.map(new Array(totalIterations), function() {
   const url = urls.shift();
@@ -22,7 +20,7 @@ Promise.map(new Array(totalIterations), function() {
     timeout: requestTimeout,
   };
 
-  if (validURL(url) && !dictionary[url]) {
+  if (validURL(url) && dictionary.url !== true) {
     return rp(options)
       .then((response) => {
         if (response.statusCode !== 200) {
@@ -32,32 +30,23 @@ Promise.map(new Array(totalIterations), function() {
         const $ = cheerio.load(response.body);
         const links = collectInternalLinks($);
 
-        dictionary[url] = true;
         urls.push(...links);
       })
       .then(() => {
-        return MongoClient.connectAsync(mongodbConnectionString);
-      })
-      .then((db) => {
-        db.listCollections({ name: mongodbCollection }, (err, list) => {
-          if (err || !list.length) {
-            db.createCollection(mongodbCollection, {}, () => {});
-          }
+        storeLinkInDatabase(url, (storedUrl) => {
+          dictionary.storedUrl = true;
+          crawledUrls++;
         });
-
-        return db;
-      })
-      .then((db) => {
-        const linkCollection = db.collection(mongodbCollection);
-        const urlObj = urlObject(url);
       })
       .catch((error) => {
-        console.log('Unable to fetch data for: ', url);
+        console.log('Unable to fetch data for: ', url, error.RequestError);
       });
   } else {
     return Promise.delay(promiseTimeout).then(() => {});
   }
 }, { concurrency: requestConcurrency})
   .then(function() {
-    console.log('finished crawling');
+    console.log('Finished crawling');
+    console.log(`Stored ${crawledUrls} urls`);
+    process.exit();
   });
