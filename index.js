@@ -3,7 +3,8 @@ const rp = require('request-promise');
 const cheerio = require('cheerio');
 
 const { baseUrl, promiseTimeout, requestTimeout, totalIterations, requestConcurrency } = require('./config');
-const { validURL, collectInternalLinks, storeLinkInDatabase, dropLinksInDatabase} = require('./utils');
+const { validURL, collectInternalLinks, storeLinkInDatabase, dropLinksInDatabase,
+  displayAllLinks } = require('./utils');
 
 const urls = [ baseUrl ];
 const dictionary = {};
@@ -46,7 +47,10 @@ Promise.map(new Array(totalIterations), function() {
   }
 }, { concurrency: requestConcurrency})
   .then(function() {
-    console.log('Finished crawling');
-    console.log(`Stored ${crawledUrls} urls`);
-    process.exit();
+    setTimeout(function(){
+      console.log('Finished crawling');
+      console.log(`Stored ${crawledUrls} urls`, '\n');
+
+      displayAllLinks();
+    }, 8000);
   });
