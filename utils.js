@@ -3,8 +3,6 @@ const MongoClient = require('mongodb').MongoClient;
 const _ = require('lodash');
 
 const { baseUrl, mongodbConnectionString, mongodbCollection, mongodbDatabase } = require('./config');
-const keys = ['slashes', 'protocol', 'hash', 'query', 'pathname', 'auth', 'host',
-  'port', 'hostname', 'origin', 'href', 'queryList'];
 
 module.exports = {
   collectInternalLinks: ($) => {
@@ -35,6 +33,47 @@ module.exports = {
     return pattern.test(url);
   },
 
+  displayAllLinks: () => {
+    MongoClient.connect(mongodbConnectionString, (err, client) => {
+      if (err) {
+        console.log(err);
+        return;
+      }
+
+      const db = client.db(mongodbDatabase);
+      const collection = db.collection(mongodbCollection);
+
+      collection.distinct('pathname', function(err, uniqueUrlPathname) {
+        if (err) {
+          console.log('Unable to fetch links');
+          return;
+        }
+
+        uniqueUrlPathname.forEach((pathname) => {
+          collection.findOne({pathname: pathname}, (err, link) => {
+            if (err) {
+              console.log(`Unable to fetch link for ${pathname} pathname`);
+              return;
+            }
+
+            let qs = '';
+            console.log(`Url: ${link.origin}${pathname || ''}`);
+
+            link.query && link.query.forEach((q) => {
+              if (q && isNaN(q)) {
+                qs += q + ',';
+              }
+            });
+
+            link.query && console.log(`Url query parameters: ${qs}`);
+
+            link.reference && console.log(`Url reference count: ${link.reference}`, '\n');
+          });
+        });
+      });
+    });
+  },
+
   dropLinksInDatabase: () => {
     MongoClient.connect(mongodbConnectionString, (err, client) => {
       if (err) {
@@ -51,7 +90,7 @@ module.exports = {
           return;
         }
 
-        console.log(`Removed document from '${mongodbCollection}' collection`);
+        console.log('\n', `Removed all documents from '${mongodbCollection}' collection`, '\n');
       });
     });
   },
@@ -74,16 +113,18 @@ module.exports = {
             return;
           }
 
-          let update = true;
-
+          if (link && link.pathname === parsedUrl.pathname) {
+            link.reference = _.get(link, 'reference', 1) + 1;
+          }
           if (link && ((_.find(link.queryList || [{}], parsedUrl.query) !== undefined) || (Array.isArray(link.queryList)
               && !(link.queryList.length) && _.isEmpty(parsedUrl.query)))) {
-            update = false;
+            // no logic to update query list when similar urls exist
           } else if (link && (link.href === parsedUrl.href)) {
-            update = false;
+            // no logic to update query list when similar urls exist
           } else {
             if (!link) {
               link = parsedUrl;
+              link.reference = 1;
             }
 
             if (!Array.isArray(_.get(link, 'queryList'))) {
@@ -96,16 +137,16 @@ module.exports = {
 
             link.queryList.push(parsedUrl.query);
             link.query.push(...Object.keys(parsedUrl.query));
-            link.reference = _.get(link, 'reference', 0) + 1;
+            link.query = [...new Set(link.query)];
           }
 
-          update === true && collection.insert(_.pick(link, keys), (err, result) => {
+          collection.update({ pathname: link.pathname }, link, { upsert: true }, (err, result) => {
             if (err) {
               console.log('Unable to store links in database', link);
               return;
             }
-            console.log('Successfully stored url: ', _.get(result, 'ops[0].href'));
-            callback(_.get(result, 'ops[0].href'));
+            console.log('Successfully stored url: ', link.href);
+            callback(link.href);
           });
         });
       } catch (err) {
